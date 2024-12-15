@@ -1,0 +1,72 @@
+---
+title: "FinalExam-HannahLedbetter"
+author: "Hannah Ledbetter"
+date: "2024-12-13"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(caret)
+library(kableExtra)
+library(randomForest)
+diabetes2 <- read.csv("diabetes_data.csv")
+
+```
+
+
+```{r}
+
+diabetes2 <- diabetes2 %>%
+  mutate(heart_disease = as.factor(heart_disease)) %>%
+  mutate(hypertension = as.factor(hypertension)) %>%
+  mutate(gender = as.factor(gender)) %>%
+  mutate(diabetes = as.factor(diabetes))
+  
+levels(diabetes2$heart_disease) = c("no", "yes")
+levels(diabetes2$diabetes) = c("no", "yes")
+levels(diabetes2$gender) = c("female", "male")
+levels(diabetes2$hypertension) = c("no","yes")
+levels(diabetes2$diabetes) = c("no", "yes")
+
+
+```
+
+```{r}
+set.seed(512)
+cvdiabetes = trainControl(method="cv", number=5)
+diabetes_tree <- diabetes2 %>%
+  select(diabetes, gender, age, hypertension, heart_disease, smoking_history, bmi, HbA1c_level, blood_glucose_level)
+db_index <- createDataPartition(1:nrow(diabetes_tree), p=0.8)$Resample1
+diatrain <- diabetes_tree[db_index,]
+diatest <- diabetes_tree[-db_index,]
+
+rfdiabetes <- train(diabetes ~ gender + age + hypertension + heart_disease + smoking_history + bmi + HbA1c_level + blood_glucose_level, data=diatrain,method="rf",trControl=cvdiabetes, tuneGrid=expand.grid(mtry=1:3),importance=TRUE)
+
+diab_tree_nn <- train(diabetes ~ age + hypertension + heart_disease + bmi + HbA1c_level + blood_glucose_level, data = diatrain, method="nnet", trControl=cvdiabetes)
+
+db_tree <- train(diabetes ~ gender + age + hypertension + heart_disease + smoking_history + bmi + HbA1c_level + blood_glucose_level, data=diatrain, trControl=cvdiabetes, method = "rpart")
+varImp(rfdiabetes)
+```
+For my primary models, I decided to use a basic decision tree, a random forest, and a neural network model to train the set. Essentially, my aim was to obtain a rudimentary understanding of the data with a decision tree, and use the randomforest and neuralnetwork model to minimize variability, while discerning the most important predictors. 
+
+Based on the importance evaluation, predictors with the most influence appear to be HbA1c_level, blood_glucose_level, and age.
+```{r}
+tree_predict <- predict(db_tree, diatest)
+rf_predict <- predict(rfdiabetes, diatest)
+nnpredict <- predict(diab_tree_nn, diatest)
+compmodel <- data.frame(rfdiapredict = rf_predict, treediapredict = tree_predict, nndiapredict = nnpredict, actualdiabetes = diatest$diabetes)
+
+compmodel<- compmodel %>%
+  mutate(accuracyrf=(sum(rfdiapredict == actualdiabetes)/nrow(compmodel))) %>%
+  mutate(accuracytree=(sum(treediapredict == actualdiabetes)/nrow(compmodel))) %>%
+  mutate(accuracynn=(sum(nndiapredict == actualdiabetes)/nrow(compmodel)))
+
+
+```
+
+The most accurate model was the random forest model, with 88% accuracy. However, the individual validities of these models would be interesting to note, as the ability to replicate this information would prove crucial to providing people with the essential kowlegde they need to live healthier lives, and make informed choices about their health.
+
+
